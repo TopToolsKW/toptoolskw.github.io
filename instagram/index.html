@@ -116,11 +116,11 @@ Object.values(IMG).forEach(im => im.onload = () => { thumbs(); draw(); });
 
 // Vormopties als lagen (van achter naar voor):
 //   {t:'shape', p, cx, cy, R, rot, flip, fill:'bg'|'accent'|'hi'|'white', alpha}  merkvorm (p = m1/m2/m3), R = straal in px
-//   {t:'photo', ...zelfde maten}  of {t:'photo', full:1}                         de foto, in een vorm of beeldvullend
+//   {t:'photo', ...zelfde maten}  of {t:'photo', rect:[x0,y0,x1,y1]}             de foto, in een vorm of in een rechthoek
 //   {t:'mark', x, y, h, alpha}                                                 wit beeldmerk (K met golven)
 //   {t:'shade', y0, y1}                                                        verloop van transparant naar achtergrondkleur
 // text: x, anchor 'bottom'|'top', y; het logo staat onder (bottom) of boven (top) het tekstblok.
-const LAYOUTS = [{"name": "Golf", "layers": [{"t": "photo", "p": "m2", "cx": 330, "cy": 170, "R": 610, "rot": -8, "flip": 0}, {"t": "shape", "p": "m2", "cx": 740, "cy": 960, "R": 420, "rot": 30, "flip": 0, "fill": "accent", "alpha": 0.88}], "text": {"x": 64, "anchor": "bottom", "y": 1090, "maxW": 592, "title": 88, "sub": 42}}, {"name": "Boog", "layers": [{"t": "mark", "x": 330, "y": 60, "h": 560, "alpha": 0.07}, {"t": "shape", "p": "m2", "cx": 120, "cy": 980, "R": 520, "rot": 160, "flip": 1, "fill": "accent"}, {"t": "photo", "p": "m2", "cx": 430, "cy": 1150, "R": 620, "rot": 172, "flip": 0}], "text": {"x": 64, "anchor": "top", "y": 190, "maxW": 592, "title": 88, "sub": 42}}, {"name": "Kaart", "layers": [{"t": "shape", "p": "m3", "cx": 420, "cy": 470, "R": 430, "rot": 4, "flip": 0, "fill": "accent"}, {"t": "photo", "p": "m3", "cx": 340, "cy": 400, "R": 410, "rot": -9, "flip": 0}], "text": {"x": 64, "anchor": "bottom", "y": 1090, "maxW": 592, "title": 88, "sub": 42}}, {"name": "Groot", "layers": [{"t": "photo", "full": 1}, {"t": "shade", "y0": 560, "y1": 900}, {"t": "shape", "p": "m1", "cx": 700, "cy": 830, "R": 300, "rot": 60, "flip": 0, "fill": "accent", "alpha": 0.9}, {"t": "shape", "p": "m2", "cx": 300, "cy": 1290, "R": 640, "rot": 15, "flip": 0, "fill": "bg"}], "text": {"x": 64, "anchor": "bottom", "y": 1090, "maxW": 592, "title": 88, "sub": 42}}, {"name": "Duo", "layers": [{"t": "shape", "p": "m2", "cx": 460, "cy": 370, "R": 475, "rot": 40, "flip": 0, "fill": "accent"}, {"t": "photo", "p": "m2", "cx": 360, "cy": 400, "R": 360, "rot": -12, "flip": 0}], "text": {"x": 64, "anchor": "bottom", "y": 1090, "maxW": 592, "title": 88, "sub": 42}}];
+const LAYOUTS = [{"name": "Golf", "layers": [{"t": "photo", "p": "m2", "cx": 330, "cy": 170, "R": 610, "rot": -8, "flip": 0}, {"t": "shape", "p": "m2", "cx": 740, "cy": 960, "R": 420, "rot": 30, "flip": 0, "fill": "accent", "alpha": 0.88}], "text": {"x": 64, "anchor": "bottom", "y": 1090, "maxW": 592, "title": 88, "sub": 42}}, {"name": "Boog", "layers": [{"t": "mark", "x": 330, "y": 60, "h": 560, "alpha": 0.07}, {"t": "shape", "p": "m2", "cx": 120, "cy": 980, "R": 520, "rot": 160, "flip": 1, "fill": "accent"}, {"t": "photo", "p": "m2", "cx": 430, "cy": 1150, "R": 620, "rot": 172, "flip": 0}], "text": {"x": 64, "anchor": "top", "y": 190, "maxW": 592, "title": 88, "sub": 42}}, {"name": "Kaart", "layers": [{"t": "shape", "p": "m3", "cx": 420, "cy": 470, "R": 430, "rot": 4, "flip": 0, "fill": "accent"}, {"t": "photo", "p": "m3", "cx": 340, "cy": 400, "R": 410, "rot": -9, "flip": 0}], "text": {"x": 64, "anchor": "bottom", "y": 1090, "maxW": 592, "title": 88, "sub": 42}}, {"name": "Groot", "layers": [{"t": "photo", "rect": [0, 0, 720, 820]}, {"t": "shade", "y0": 520, "y1": 820}, {"t": "shape", "p": "m1", "cx": 700, "cy": 830, "R": 300, "rot": 60, "flip": 0, "fill": "accent", "alpha": 0.9}, {"t": "shape", "p": "m2", "cx": 300, "cy": 1290, "R": 640, "rot": 15, "flip": 0, "fill": "bg"}], "text": {"x": 64, "anchor": "bottom", "y": 1090, "maxW": 592, "title": 88, "sub": 42}}, {"name": "Duo", "layers": [{"t": "shape", "p": "m2", "cx": 460, "cy": 370, "R": 475, "rot": 40, "flip": 0, "fill": "accent"}, {"t": "photo", "p": "m2", "cx": 360, "cy": 400, "R": 360, "rot": -12, "flip": 0}], "text": {"x": 64, "anchor": "bottom", "y": 1090, "maxW": 592, "title": 88, "sub": 42}}];
 
 const $ = id => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d');
@@ -138,7 +138,7 @@ function applyShape(c, s){
 const probe = document.createElementNS('http://www.w3.org/2000/svg','path');
 function photoBox(L){
   const s = L.layers.find(x => x.t === 'photo');
-  if(s.full) return { x0:0, y0:0, x1:W, y1:H };
+  if(s.rect) return { x0:s.rect[0], y0:s.rect[1], x1:s.rect[2], y1:s.rect[3] };
   const g = SHAPES[s.p], k = s.R / g.r, a = s.rot * Math.PI / 180, f = s.flip ? -1 : 1;
   probe.setAttribute('d', g.d); const len = probe.getTotalLength();
   let x0=W, y0=H, x1=0, y1=0;
@@ -227,7 +227,8 @@ function render(c, k, li = state.layout, withText = true, withPhoto = true){
   for(const s of L.layers){
     c.save();
     if(s.t === 'photo'){
-      if(!s.full) c.clip(applyShape(c, s));
+      if(s.rect){ const r = new Path2D(); r.rect(s.rect[0], s.rect[1], s.rect[2]-s.rect[0], s.rect[3]-s.rect[1]); c.clip(r); }
+      else c.clip(applyShape(c, s));
       c.setTransform(k,0,0,k,0,0);
       if(withPhoto && v.img){ const {w,h} = size(); c.imageSmoothingQuality='high'; c.drawImage(v.img, v.x, v.y, w, h); }
       else { c.fillStyle = 'rgba(255,255,255,.55)'; c.fillRect(0,0,W,H); if(withText){ c.fillStyle=C.bg; c.font=`600 30px ${fontFam()}`; c.textAlign='center';
@@ -290,7 +291,7 @@ function toDesign(e){ const r = cv.getBoundingClientRect(); return { x:(e.client
 function onPhoto(x, y){
   const L = LAYOUTS[state.layout], i = L.layers.findIndex(l => l.t === 'photo'), ph = L.layers[i];
   const inShape = s => { hitCtx.setTransform(1,0,0,1,0,0); const p = applyShape(hitCtx, s); return hitCtx.isPointInPath(p, x, y); };
-  if(!(ph.full ? true : inShape(ph))) return false;
+  if(!(ph.rect ? (x >= ph.rect[0] && x <= ph.rect[2] && y >= ph.rect[1] && y <= ph.rect[3]) : inShape(ph))) return false;
   for(const l of L.layers.slice(i+1)){                       // lagen die over de foto liggen
     if(l.t === 'shape' && (l.alpha ?? 1) >= .5 && inShape(l)) return false;
     if(l.t === 'shade' && y > (l.y0 + l.y1) / 2) return false;

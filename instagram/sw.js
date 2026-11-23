@@ -2,7 +2,7 @@
 // - De pagina zelf: altijd eerst vers van internet, de opgeslagen kopie alleen als je offline bent.
 // - Iconen en overige bestanden: uit de opslag, en op de achtergrond ververst.
 // Bij het ophalen wordt de browsercache overgeslagen, zodat er nooit een oude versie in de opslag belandt.
-const CACHE = 'story-maker-v5';
+const CACHE = 'story-maker-v6';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './favicon.png'];
 
 self.addEventListener('install', e => {
@@ -13,7 +13,7 @@ self.addEventListener('install', e => {
 
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
-    .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+    .then(keys => Promise.all(keys.filter(k => k.startsWith('story-maker-') && k !== CACHE).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 

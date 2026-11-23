@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Huisstijltools – Gemeente Katwijk</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#002f70">
+<link rel="icon" href="/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Huisstijltools">
 <style>
   :root{ --donkerblauw:#002f70; --line:#d5dce6; --muted:#5a6b82; --bg:#eef1f5;
          --font:'Maax', Arial, 'Liberation Sans', Helvetica, sans-serif; }
@@ -118,6 +124,25 @@ $('newwin').onclick = () => {
   const url = URL.createObjectURL(new Blob([source(t)], {type:'text/html'}));
   window.open(url, '_blank');
 };
+</script>
+<script>
+// ---------- Installeren als app ----------
+// Werkt offline via sw.js; de knop verschijnt alleen als Chrome aangeeft dat installeren kan.
+if('serviceWorker' in navigator && window.isSecureContext && location.protocol !== 'file:') navigator.serviceWorker.register('/sw.js').catch(() => {});
+(() => {
+  const css = document.createElement('style');
+  css.textContent = `.install-app{display:none;align-self:flex-start;align-items:center;gap:8px;font:600 14px var(--font);background:#fff;color:var(--donkerblauw);
+    border:0;border-radius:8px;padding:9px 14px;cursor:pointer}.install-app.show{display:inline-flex}
+    .install-app img{width:20px;height:20px;border-radius:5px}`;
+  document.head.append(css);
+  const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'install-app';
+  btn.innerHTML = '<img src="/icon-192.png" alt="">Installeer als app';
+  (document.querySelector('header.top .in') || document.body).append(btn);
+  let prompt = null;
+  addEventListener('beforeinstallprompt', e => { e.preventDefault(); prompt = e; btn.classList.add('show'); });
+  btn.onclick = async () => { if(!prompt) return; prompt.prompt(); await prompt.userChoice; prompt = null; btn.classList.remove('show'); };
+  addEventListener('appinstalled', () => btn.classList.remove('show'));
+})();
 </script>
 </body>
 </html>

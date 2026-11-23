@@ -2,7 +2,7 @@
 // - De pagina zelf: altijd eerst vers van internet, de opgeslagen kopie alleen als je offline bent.
 // - Iconen en manifest: uit de opslag, en op de achtergrond ververst.
 // - De Instagram-app in /instagram/ heeft een eigen service worker en wordt hier met rust gelaten.
-const CACHE = 'huisstijltools-v1';
+const CACHE = 'huisstijltools-v2';
 const FILES = ['/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png', '/favicon.png'];
 
 self.addEventListener('install', e => {

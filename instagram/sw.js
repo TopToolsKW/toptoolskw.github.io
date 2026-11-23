@@ -1,6 +1,6 @@
 // Service worker voor de Instagram-story-app: werkt ook zonder internet.
 // Bestanden komen uit de cache en worden op de achtergrond ververst, zodat een nieuwe versie de volgende keer klaarstaat.
-const CACHE = 'story-maker-v1';
+const CACHE = 'story-maker-v2';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './favicon.png'];
 
 self.addEventListener('install', e => {

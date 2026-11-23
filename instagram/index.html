@@ -33,7 +33,12 @@
   .big{font:600 16px var(--font);width:100%;padding:13px 16px;border-radius:10px;border:2px solid var(--donkerblauw);background:#fff;color:var(--donkerblauw);cursor:pointer;text-align:center;display:block}
   .big.primary{background:var(--donkerblauw);color:#fff}
   .big input{display:none}
-  .zoom{display:flex;align-items:center;gap:10px;margin-top:14px;font:500 14px var(--font)}
+  .stage{display:flex;flex-direction:column;gap:10px;width:max-content;max-width:100%}
+  .cvwrap{position:relative}
+  .stage .tip{margin:0;max-width:100%;width:0;min-width:100%;text-align:center}
+  .zoom{display:flex;align-items:center;gap:12px;font:500 14px var(--font);background:#fff;border-radius:12px;padding:10px 16px;box-shadow:0 1px 3px rgba(0,47,112,.08);width:0;min-width:100%}
+  .inline{position:absolute;margin:0;border:0;outline:2px dashed rgba(255,255,255,.85);outline-offset:4px;border-radius:4px;background:rgba(0,0,0,.18);
+    resize:none;overflow:hidden;white-space:pre-wrap;padding:0;caret-color:#fff}
   .zoom input{flex:1;accent-color:var(--donkerblauw)}
   .zoom input:disabled{opacity:.4}
   .tip{font-size:13px;color:var(--muted);margin-top:8px}
@@ -58,7 +63,14 @@
   <p>Installeer als app<span>Opent zonder browser en werkt ook offline.</span></p>
   <button type="button" id="installBtn">Installeren</button></div>
 <div class="wrap">
-  <canvas id="cv" width="1080" height="1920" class="empty" tabindex="0" aria-label="Voorbeeld van de story"></canvas>
+  <div class="stage">
+    <div class="cvwrap">
+      <canvas id="cv" width="1080" height="1920" class="empty" tabindex="0" aria-label="Voorbeeld van de story"></canvas>
+      <textarea id="inline" class="inline" rows="1" spellcheck="false" aria-label="Tekst aanpassen" hidden></textarea>
+    </div>
+    <div class="zoom"><span>Inzoomen</span><input type="range" id="zoom" min="1" max="3" step="0.01" value="1" disabled></div>
+    <p class="tip" id="tip">Tik op een foto-vlak om een foto te kiezen. Tik op de tekst om hem aan te passen.</p>
+  </div>
 
   <div class="panel">
     <section class="step"><h2><b>1</b>Kies een vorm en kleur</h2><div class="layouts" id="layouts"></div>
@@ -66,8 +78,6 @@
 
     <section class="step"><h2><b>2</b>Kies een foto</h2>
       <label class="big">Foto kiezen<input type="file" id="file" accept="image/*"></label>
-      <div class="zoom">Inzoomen <input type="range" id="zoom" min="1" max="3" step="0.01" value="1" disabled></div>
-      <p class="tip" id="tip">Je kunt een foto ook op het voorbeeld slepen.</p>
     </section>
 
     <section class="step"><h2><b>3</b>Typ de tekst</h2>
@@ -114,7 +124,7 @@ const LAYOUTS = [{"name": "Golf", "layers": [{"t": "photo", "p": "m2", "cx": 330
 
 const $ = id => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d');
-let textBox = null;
+let textBox = null, textHits = {}, editing = null;
 const state = { layout:0, subPos:'above' };
 const fontFam = () => getComputedStyle(document.body).fontFamily;
 
@@ -181,8 +191,8 @@ function textBlock(c, T){
   let ss = T.sub, sl = $('sub').value.trim() ? wrap(c, $('sub').value.trim(), `500 ${ss}px ${fontFam()}`, T.maxW) : [];
   while(sl.length > 2 && ss > T.sub*.6){ ss *= .94; sl = wrap(c, $('sub').value.trim(), `500 ${ss}px ${fontFam()}`, T.maxW); }
   const tLead = ts*1.0, sLead = ss*1.18, gap = ss*.5;
-  const titleItems = tl.map(l => ({ text:l, font:`700 ${ts}px ${fontFam()}`, color:C.title, lead:tLead, asc:ts*.72, desc:ts*.22 }));
-  const subItems = sl.map(l => ({ text:l, font:`500 ${ss}px ${fontFam()}`, color:C.hi, lead:sLead, asc:ss*.72, desc:ss*.22 }));
+  const titleItems = tl.map(l => ({ field:'title', size:ts, weight:700, text:l, font:`700 ${ts}px ${fontFam()}`, color:C.title, lead:tLead, asc:ts*.72, desc:ts*.22 }));
+  const subItems = sl.map(l => ({ field:'sub', size:ss, weight:500, text:l, font:`500 ${ss}px ${fontFam()}`, color:C.hi, lead:sLead, asc:ss*.72, desc:ss*.22 }));
   const order = (state.subPos === 'above' ? [subItems, titleItems] : [titleItems, subItems]).filter(b => b.length);
   // basislijnen: binnen een blok de regelafstand; tussen blokken onderkant letters + vaste ruimte + hoofdletterhoogte
   const items = []; let y = 0, prev = null;
@@ -196,7 +206,15 @@ function textBlock(c, T){
   const logoY = T.anchor === 'bottom' ? T.y - LOGO_H : T.y;
   if(lw) c.drawImage(lg, T.x, logoY, lw, LOGO_H);
   c.textBaseline = 'alphabetic'; c.textAlign = 'left';
-  items.forEach(it => { c.font = it.font; c.fillStyle = it.color; c.fillText(it.text, T.x, top + it.y); });
+  const hits = {};
+  items.forEach(it => {
+    const f = it.field, w = (c.font = it.font, c.measureText(it.text).width), y0 = top + it.y - it.asc - 6, y1 = top + it.y + it.desc + 6;
+    const h = hits[f] ||= { x0:T.x, x1:T.x, y0, y1, size:it.size, lead:it.lead, weight:it.weight, color:it.color, maxW:T.maxW, first:top + it.y - it.asc };
+    h.x1 = Math.max(h.x1, T.x + w); h.y0 = Math.min(h.y0, y0); h.y1 = Math.max(h.y1, y1);
+    if(c === ctx && editing === f) return;                    // tekst die je aan het typen bent niet dubbel tekenen
+    c.fillStyle = it.color; c.fillText(it.text, T.x, top + it.y);
+  });
+  if(c === ctx) textHits = hits;
   const tb = { x0:T.x - 10, y0:Math.min(top, logoY) - 10, x1:T.x + T.maxW + 10, y1:Math.max(top + height, logoY + LOGO_H) + 20 };
   if(c === ctx) textBox = tb;
 }
@@ -230,8 +248,8 @@ function draw(){
   render(ctx, cv.width / W);
   const m = movable();
   $('zoom').disabled = !v.img; $('zoom').value = v.zoom;
-  $('tip').textContent = !v.img ? 'Je kunt een foto ook op het voorbeeld slepen.'
-    : m ? 'Sleep de foto zelf om hem te verschuiven.' : 'Zoom in als je de foto wilt verschuiven.';
+  $('tip').textContent = !v.img ? 'Tik op het foto-vlak om een foto te kiezen. Tik op de tekst om hem aan te passen.'
+    : m ? 'Sleep de foto om hem te verschuiven. Tik op de tekst om hem aan te passen.' : 'Zoom in om de foto te verschuiven. Tik op de tekst om hem aan te passen.';
   document.querySelectorAll('#layouts button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.i === state.layout));
   document.querySelectorAll('#themes button').forEach(b => b.setAttribute('aria-pressed', THEMES[+b.dataset.t] === C));
   cv.style.background = C.bg;
@@ -263,7 +281,7 @@ $('file').onchange = e => load(e.target.files[0]);
 cv.addEventListener('dragover', e => e.preventDefault());
 cv.addEventListener('drop', e => { e.preventDefault(); load(e.dataTransfer.files[0]); });
 $('zoom').oninput = e => setZoom(+e.target.value);
-['title','sub'].forEach(id => $(id).addEventListener('input', draw));
+['title','sub'].forEach(id => $(id).addEventListener('input', () => { draw(); if(editing === id){ inline.value = $(id).value; placeInline(); } }));
 document.querySelectorAll('#subPos button').forEach(b => b.onclick = () => { state.subPos = b.dataset.pos; draw(); });
 
 // Alleen slepen als je echt op de zichtbare foto drukt: binnen de fotovorm en niet op een vorm, verloop of tekst erboven
@@ -281,8 +299,30 @@ function onPhoto(x, y){
 }
 function movable(){ return v.img && (size().w > (v.box.x1-v.box.x0)+.5 || size().h > (v.box.y1-v.box.y0)+.5); }
 let drag = null;
+// ---------- Tekst direct in de preview aanpassen ----------
+const inline = $('inline');
+function textAt(x, y){ for(const f of ['title','sub']){ const h = textHits[f]; if(h && x >= h.x0-8 && x <= h.x1+12 && y >= h.y0 && y <= h.y1) return f; } return null; }
+function placeInline(){
+  const h = textHits[editing]; if(!h){ inline.hidden = true; return; }
+  const k = cv.getBoundingClientRect().width / W;
+  Object.assign(inline.style, { left:h.x0*k+'px', top:(h.first - h.size*.2)*k+'px', width:(h.maxW+8)*k+'px', height:'auto',
+    font:`${h.weight} ${h.size*k}px/${h.lead*k}px ${fontFam()}`, color:h.color, letterSpacing:'normal' });
+  inline.style.height = inline.scrollHeight + 'px';
+}
+function startEdit(f){
+  editing = f; inline.value = $(f).value; inline.hidden = false; draw(); placeInline();
+  inline.focus(); inline.setSelectionRange(inline.value.length, inline.value.length);
+}
+function stopEdit(){ if(!editing) return; editing = null; inline.hidden = true; draw(); }
+inline.addEventListener('input', () => { $(editing).value = editing === 'sub' ? inline.value.replace(/\n/g,' ') : inline.value; draw(); placeInline(); });
+inline.addEventListener('keydown', e => { if(e.key === 'Escape' || (e.key === 'Enter' && editing === 'sub')){ e.preventDefault(); inline.blur(); } });
+inline.addEventListener('blur', stopEdit);
+addEventListener('resize', () => editing && placeInline());
+
 cv.addEventListener('pointerdown', e => {
   const {x, y} = toDesign(e);
+  const f = textAt(x, y);
+  if(f){ e.preventDefault(); startEdit(f); return; }          // tik op tekst = tekst aanpassen
   if(!onPhoto(x, y)) return;                                  // naast de foto: niets doen
   if(!v.img){ $('file').click(); return; }
   if(!movable()) return;
@@ -291,7 +331,7 @@ cv.addEventListener('pointerdown', e => {
 cv.addEventListener('pointermove', e => {
   if(!drag){                                                  // cursor alleen als handje boven de foto
     const {x, y} = toDesign(e), hit = onPhoto(x, y);
-    cv.style.cursor = !hit ? 'default' : !v.img ? 'pointer' : movable() ? 'grab' : 'default';
+    cv.style.cursor = textAt(x, y) ? 'text' : !hit ? 'default' : !v.img ? 'pointer' : movable() ? 'grab' : 'default';
     return;
   }
   const k = W / cv.getBoundingClientRect().width;

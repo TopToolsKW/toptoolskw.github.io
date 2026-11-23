@@ -4,14 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Instagram-story – Gemeente Katwijk</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#002f70">
+<link rel="icon" href="favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Story maker">
 <style>
   :root{ --donkerblauw:#002f70; --line:#d5dce6; --muted:#5a6b82; --font:'Maax', Arial, 'Liberation Sans', Helvetica, sans-serif; }
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:var(--font);background:#eef1f5;color:var(--donkerblauw);min-height:100vh;padding:24px 20px 40px}
   .wrap{max-width:1000px;margin:0 auto;display:grid;grid-template-columns:auto 380px;gap:32px;align-items:start;justify-content:center}
-  @media (max-width:860px){ .wrap{grid-template-columns:1fr} }
+  @media (max-width:860px){ .wrap{grid-template-columns:1fr;justify-items:center} .panel{width:100%} canvas#cv{height:min(60vh,700px)!important;width:auto} body{padding:14px 12px 32px} }
   canvas#cv{height:min(84vh,860px);aspect-ratio:9/16;max-width:100%;display:block;border-radius:14px;box-shadow:0 6px 28px rgba(0,47,112,.18);touch-action:none;background:#002f70}
-  canvas#cv.movable{cursor:grab} canvas#cv.dragging{cursor:grabbing} canvas#cv.empty{cursor:pointer}
+  canvas#cv.dragging{cursor:grabbing!important}
   .panel{display:flex;flex-direction:column;gap:22px}
   .step{background:#fff;border-radius:14px;padding:18px;box-shadow:0 1px 3px rgba(0,47,112,.08)}
   .step h2{font:700 17px var(--font);margin-bottom:12px;display:flex;align-items:center;gap:10px}
@@ -39,9 +45,18 @@
   .seg button+button{border-left:1px solid var(--line)}
   .seg button[aria-pressed=true]{background:var(--donkerblauw);color:#fff}
   .seg.off{opacity:.45;pointer-events:none}
+  .install{max-width:1000px;margin:0 auto 18px;display:none;align-items:center;gap:14px;background:#fff;border-radius:14px;padding:14px 18px;box-shadow:0 1px 3px rgba(0,47,112,.08)}
+  .install.show{display:flex}
+  .install img{width:44px;height:44px;border-radius:10px;flex:none}
+  .install p{flex:1;font:500 14px var(--font);line-height:1.35}
+  .install p span{display:block;font-weight:400;font-size:13px;color:var(--muted)}
+  .install button{font:600 15px var(--font);padding:10px 16px;border-radius:10px;border:0;background:var(--donkerblauw);color:#fff;cursor:pointer;white-space:nowrap}
 </style>
 </head>
 <body>
+<div class="install" id="install"><img src="icon-192.png" alt="">
+  <p>Installeer als app<span>Opent zonder browser en werkt ook offline.</span></p>
+  <button type="button" id="installBtn">Installeren</button></div>
 <div class="wrap">
   <canvas id="cv" width="1080" height="1920" class="empty" tabindex="0" aria-label="Voorbeeld van de story"></canvas>
 
@@ -99,6 +114,7 @@ const LAYOUTS = [{"name": "Golf", "layers": [{"t": "photo", "p": "m2", "cx": 330
 
 const $ = id => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d');
+let textBox = null;
 const state = { layout:0, subPos:'above' };
 const fontFam = () => getComputedStyle(document.body).fontFamily;
 
@@ -181,6 +197,8 @@ function textBlock(c, T){
   if(lw) c.drawImage(lg, T.x, logoY, lw, LOGO_H);
   c.textBaseline = 'alphabetic'; c.textAlign = 'left';
   items.forEach(it => { c.font = it.font; c.fillStyle = it.color; c.fillText(it.text, T.x, top + it.y); });
+  const tb = { x0:T.x - 10, y0:Math.min(top, logoY) - 10, x1:T.x + T.maxW + 10, y1:Math.max(top + height, logoY + LOGO_H) + 20 };
+  if(c === ctx) textBox = tb;
 }
 
 // ---------- Tekenen ----------
@@ -210,11 +228,10 @@ function render(c, k, li = state.layout, withText = true, withPhoto = true){
 }
 function draw(){
   render(ctx, cv.width / W);
-  const m = v.img && (size().w > (v.box.x1-v.box.x0)+.5 || size().h > (v.box.y1-v.box.y0)+.5);
-  cv.classList.toggle('movable', !!m); cv.classList.toggle('empty', !v.img);
+  const m = movable();
   $('zoom').disabled = !v.img; $('zoom').value = v.zoom;
   $('tip').textContent = !v.img ? 'Je kunt een foto ook op het voorbeeld slepen.'
-    : m ? 'Sleep de foto in het voorbeeld om hem te verschuiven.' : 'Zoom in als je de foto wilt verschuiven.';
+    : m ? 'Sleep de foto zelf om hem te verschuiven.' : 'Zoom in als je de foto wilt verschuiven.';
   document.querySelectorAll('#layouts button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.i === state.layout));
   document.querySelectorAll('#themes button').forEach(b => b.setAttribute('aria-pressed', THEMES[+b.dataset.t] === C));
   cv.style.background = C.bg;
@@ -249,13 +266,35 @@ $('zoom').oninput = e => setZoom(+e.target.value);
 ['title','sub'].forEach(id => $(id).addEventListener('input', draw));
 document.querySelectorAll('#subPos button').forEach(b => b.onclick = () => { state.subPos = b.dataset.pos; draw(); });
 
+// Alleen slepen als je echt op de zichtbare foto drukt: binnen de fotovorm en niet op een vorm, verloop of tekst erboven
+const hitCtx = document.createElement('canvas').getContext('2d');
+function toDesign(e){ const r = cv.getBoundingClientRect(); return { x:(e.clientX-r.left)*W/r.width, y:(e.clientY-r.top)*H/r.height }; }
+function onPhoto(x, y){
+  const L = LAYOUTS[state.layout], i = L.layers.findIndex(l => l.t === 'photo'), ph = L.layers[i];
+  const inShape = s => { hitCtx.setTransform(1,0,0,1,0,0); const p = applyShape(hitCtx, s); return hitCtx.isPointInPath(p, x, y); };
+  if(!(ph.full ? true : inShape(ph))) return false;
+  for(const l of L.layers.slice(i+1)){                       // lagen die over de foto liggen
+    if(l.t === 'shape' && (l.alpha ?? 1) >= .5 && inShape(l)) return false;
+    if(l.t === 'shade' && y > (l.y0 + l.y1) / 2) return false;
+  }
+  return !(textBox && x >= textBox.x0 && x <= textBox.x1 && y >= textBox.y0 && y <= textBox.y1);
+}
+function movable(){ return v.img && (size().w > (v.box.x1-v.box.x0)+.5 || size().h > (v.box.y1-v.box.y0)+.5); }
 let drag = null;
 cv.addEventListener('pointerdown', e => {
+  const {x, y} = toDesign(e);
+  if(!onPhoto(x, y)) return;                                  // naast de foto: niets doen
   if(!v.img){ $('file').click(); return; }
+  if(!movable()) return;
   drag = { x:e.clientX, y:e.clientY, vx:v.x, vy:v.y }; cv.classList.add('dragging'); cv.setPointerCapture(e.pointerId);
 });
 cv.addEventListener('pointermove', e => {
-  if(!drag) return; const k = W / cv.getBoundingClientRect().width;
+  if(!drag){                                                  // cursor alleen als handje boven de foto
+    const {x, y} = toDesign(e), hit = onPhoto(x, y);
+    cv.style.cursor = !hit ? 'default' : !v.img ? 'pointer' : movable() ? 'grab' : 'default';
+    return;
+  }
+  const k = W / cv.getBoundingClientRect().width;
   v.x = drag.vx + (e.clientX-drag.x)*k; v.y = drag.vy + (e.clientY-drag.y)*k; clamp(); draw();
 });
 ['pointerup','pointercancel'].forEach(t => cv.addEventListener(t, () => { drag = null; cv.classList.remove('dragging'); }));
@@ -266,6 +305,16 @@ $('download').onclick = () => {
     const name = ($('title').value.trim().split(/\s+/).slice(0,4).join('-') || 'story').toLowerCase().replace(/[^a-z0-9-]/g,'');
     a.download = `instagram-story-${name}.jpg`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }, 'image/jpeg', 0.95);
 };
+
+// ---------- Installeren als app ----------
+if('serviceWorker' in navigator && window.isSecureContext && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+let installPrompt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('install').classList.add('show'); });
+$('installBtn').onclick = async () => {
+  if(!installPrompt) return;
+  installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('install').classList.remove('show');
+};
+addEventListener('appinstalled', () => $('install').classList.remove('show'));
 
 (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => { thumbs(); draw(); });
 thumbs(); draw();
